@@ -1,0 +1,9 @@
+FROM python:3.11
+RUN apt-get update && apt-get install -y python3-tk tk-dev libx11-6
+WORKDIR /organizador 
+COPY organizador.py . 
+RUN pip install tkinter
+RUN pip install pandas
+CMD ["python", "organizador.py"]
+
+
