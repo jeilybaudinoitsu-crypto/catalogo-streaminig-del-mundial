@@ -1,0 +1,200 @@
+import sys
+from datetime import datetime, timedelta
+
+# ==========================================
+# CONFIGURACIÓN GENERAL (CONSTANTES)
+# ==========================================
+TURNOS_INFO: dict = {
+    'Mañana': {"inicio": 6, "duracion": 8},
+    'Tarde': {"inicio": 14, "duracion": 8},
+    'Noche': {"inicio": 22, "duracion": 8},
+    'LIBRE': None
+}
+
+TURNOS_DISPONIBLES: tuple = ('Mañana', 'Tarde', 'Noche')
+DIAS_SEMANA: tuple = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+
+# Bases de datos en memoria
+empleados_registrados: dict[int, dict[str, str]] = {}
+agenda_turnos: dict[str, str] = {} # Key: "YYYY-MM-DD-Turno" -> Value: "Nombre Empleado"
+
+
+# ==========================================
+# MÓDULO 1: REGISTRO DE PERSONAL
+# ==========================================
+def registrar_empleado() -> bool:
+    print('\n--- Panel de Registro de Empleados ---')
+    try:
+        id_empleado = int(input('Ingrese un ID numérico para el empleado: '))
+        
+        if id_empleado in empleados_registrados:
+            print('❌ Error: Ese ID ya se encuentra registrado.')
+            return False 
+            
+        nombre = input('Ingrese el nombre: ').strip().capitalize()
+        apellido = input('Ingrese el apellido: ').strip().capitalize()
+        
+        empleados_registrados[id_empleado] = {'nombre': nombre, 'apellido': apellido}
+        print(f'✅ Empleado {nombre} {apellido} registrado con éxito.')
+        return True
+    except ValueError:
+        print('❌ Error crítico: El ID debe ser numérico.')
+        return False
+
+
+# ==========================================
+# MÓDULO 2: ASIGNACIÓN MANUAL (UNIFICADA)
+# ==========================================
+def asignar_turno_manual() -> bool:
+    """Asigna un turno para una fecha específica y lo guarda en la agenda global."""
+    print('\n--- PANEL DE ASIGNACIÓN MANUAL ---')
+    
+    # 1. Pedimos la fecha exacta para poder cruzarla con el generador automático
+    fecha_str = input('Ingrese la fecha a asignar (AAAA-MM-DD): ').strip()
+    try:
+        # Validamos que la fecha sea correcta
+        datetime.strptime(fecha_str, "%Y-%m-%d")
+    except ValueError:
+        print('❌ Error: Formato de fecha incorrecto. Use AAAA-MM-DD.')
+        return False
+
+    # 2. Selección de turno
+    print('\nTurnos disponibles:', ", ".join(TURNOS_DISPONIBLES))
+    opcion_turno = input('Seleccione el turno deseado: ').strip().capitalize()
+    
+    if opcion_turno not in TURNOS_DISPONIBLES:
+        print('❌ Opción inválida. Turno no reconocido.')
+        return False
+            
+    # 3. Selección de empleado y guardado
+    try:
+        id_empleado = int(input('Ingrese el ID del empleado: '))
+        if id_empleado not in empleados_registrados:
+            print('❌ No se encontró ningún empleado con ese ID.')
+            return False
+            
+        # Generamos la misma llave que usará el sistema automático
+        llave_turno = f'{fecha_str}-{opcion_turno}'
+        
+        if llave_turno in agenda_turnos:
+            ocupante_actual = agenda_turnos[llave_turno]
+            print(f'⚠️ ¡COLISIÓN! El turno de {opcion_turno} del {fecha_str} ya está ocupado por {ocupante_actual}.')
+            return False
+            
+        datos = empleados_registrados[id_empleado]
+        nombre_completo = f"{datos['nombre']} {datos['apellido']}"
+        
+        agenda_turnos[llave_turno] = nombre_completo
+        print(f'✅ Turno asignado correctamente a {nombre_completo}.')
+        return True
+            
+    except ValueError:
+        print('❌ Error: El ID debe ser numérico.')
+        return False
+
+
+# ==========================================
+# MÓDULO 3: GENERADOR ROTATIVO (1 DÍA SÍ, 2 NO)
+# ==========================================
+def panel_calendario_automatico() -> None:
+    """Genera la rotación y la inyecta directamente en la agenda_turnos global."""
+    print('\n--- GENERADOR DE ROTACIÓN: 1 DÍA DE TRABAJO, 2 LIBRES ---')
+    
+    try:
+        id_empleado = int(input("Ingrese el ID del empleado a programar: "))
+        if id_empleado not in empleados_registrados:
+            print('❌ Empleado no encontrado. Regístrelo primero.')
+            return
+            
+        fecha_str = input("Fecha de inicio (AAAA-MM-DD): ").strip()
+        fecha_inicio = datetime.strptime(fecha_str, "%Y-%m-%d")
+        
+        print('\nTurnos disponibles:', ", ".join(TURNOS_DISPONIBLES))
+        turno_inicial = input("¿En qué turno desea iniciar?: ").strip().capitalize()
+        
+        if turno_inicial not in TURNOS_DISPONIBLES:
+            print("❌ Turno inicial inválido.")
+            return
+            
+        dias_a_generar = int(input("¿Cuántos días desea proyectar?: "))
+        
+        datos = empleados_registrados[id_empleado]
+        nombre_completo = f"{datos['nombre']} {datos['apellido']}"
+        indice_inicio = TURNOS_DISPONIBLES.index(turno_inicial)
+        
+        print("\n" + "="*60)
+        print(f"{'FECHA':<12} | {'DÍA':<10} | {'TURNO':<10} | {'ESTADO EN AGENDA':<15}")
+        print("-" * 60)
+        
+        # Lógica matemática del ciclo
+        for i in range(dias_a_generar):
+            fecha_actual = fecha_inicio + timedelta(days=i)
+            fecha_txt = fecha_actual.strftime("%Y-%m-%d")
+            nombre_dia = DIAS_SEMANA[fecha_actual.weekday()] # Día en español seguro
+            
+            # Si el residuo de dividir entre 3 es 0, toca trabajar. Si no, libre.
+            if i % 3 == 0:
+                ciclo_trabajo = i // 3
+                turno_actual = TURNOS_DISPONIBLES[(indice_inicio + ciclo_trabajo) % len(TURNOS_DISPONIBLES)]
+                llave = f"{fecha_txt}-{turno_actual}"
+                
+                # Intentamos guardar en la agenda central
+                if llave in agenda_turnos:
+                    ocupante = agenda_turnos[llave]
+                    estado = f"❌ Ocupado por {ocupante}"
+                else:
+                    agenda_turnos[llave] = nombre_completo
+                    estado = "✅ Asignado"
+            else:
+                turno_actual = "LIBRE"
+                estado = "➖ (Descanso)"
+                
+            print(f"{fecha_txt:<12} | {nombre_dia:<10} | {turno_actual:<10} | {estado:<15}")
+            
+        print("="*60 + "\n")
+        
+    except ValueError:
+        print("❌ Error: Formato de fecha o número inválido.")
+
+
+# ==========================================
+# UTILIDADES Y MENÚ
+# ==========================================
+def ver_agenda() -> None:
+    print('\n--- AGENDA GLOBAL DE TURNOS ---')
+    if not agenda_turnos:
+        print('La agenda está vacía.')
+    else:
+        # Ordenamos la agenda por fecha para que se vea bonita
+        for llave in sorted(agenda_turnos.keys()):
+            print(f'{llave} -> {agenda_turnos[llave]}')
+
+
+def menu_principal() -> None:
+    while True:
+        print('\n' + '='*35)
+        print(' SISTEMA CENTRALIZADO DE TURNOS')
+        print('='*35)
+        print('1. Registrar nuevo empleado')
+        print('2. Asignar turno manual')
+        print('3. Proyectar rotación automática (1x2)')
+        print('4. Ver agenda global (Manual y Auto)')
+        print('5. Salir')
+        
+        try:
+            seleccion = int(input('\nElija una opción (1-5): '))
+            if seleccion == 1: registrar_empleado()
+            elif seleccion == 2: asignar_turno_manual()
+            elif seleccion == 3: panel_calendario_automatico()
+            elif seleccion == 4: ver_agenda()
+            elif seleccion == 5:
+                print('Cerrando el sistema. ¡Hasta luego!')
+                sys.exit(0)
+            else:
+                print('❌ Opción válida del 1 al 5.')
+        except ValueError:
+            print('❌ Entrada no válida.')
+
+
+if __name__ == '__main__':
+    menu_principal()
