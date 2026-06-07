@@ -1,0 +1,231 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import pandas as pd   
+
+class SistemaTurnosApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Gestor de Turnos - Premium Edition")
+        self.root.geometry("1100x650")
+        
+        # --- COLORES PERSONALIZADOS ---
+        self.color_fondo = "#121212"    # Negro profundo
+        self.color_panel = "#1e1e2e"    # Azul oscuro/púrpura
+        self.color_acento = "#7c4dff"   # Morado vibrante
+        self.color_texto = "#ffffff"    # Blanco
+        self.color_input = "#1e1e2e"    # Fondo para los campos
+        
+        self.root.configure(bg=self.color_fondo)
+
+        # --- CONFIGURACIÓN DE ESTILOS TTK ---
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
+        
+        # Estilo para las pestañas (Notebook)
+        self.style.configure("TNotebook", background=self.color_fondo, borderwidth=0)
+        self.style.configure("TNotebook.Tab", 
+                             background=self.color_panel, 
+                             foreground=self.color_texto, 
+                             padding=[15, 5], 
+                             font=("Arial", 10, "bold"))
+        self.style.map("TNotebook.Tab", 
+                       background=[("selected", self.color_acento)], 
+                       foreground=[("selected", "white")])
+
+        # --- ESTILO DEFINITIVO PARA COMBOBOX (SIN GRIS) ---
+        # Configuramos el cuerpo del Combobox
+        self.style.configure("TCombobox", 
+                             fieldbackground=self.color_input, 
+                             background=self.color_acento, 
+                             foreground="white",
+                             arrowcolor="white",
+                             darkcolor=self.color_input,
+                             lightcolor=self.color_input,
+                             selectbackground=self.color_acento,
+                             selectforeground="white",
+                             borderwidth=0)
+        
+        # Mapeo de estados para evitar que vuelva al gris al estar activo o enfocado
+        self.style.map("TCombobox",
+                       fieldbackground=[("readonly", self.color_input), ("focus", self.color_input)],
+                       background=[("readonly", self.color_acento)],
+                       foreground=[("readonly", "white")])
+
+        # Configuración global para la lista desplegable (Listbox)
+        self.root.option_add("*TCombobox*Listbox.background", self.color_input)
+        self.root.option_add("*TCombobox*Listbox.foreground", "white")
+        self.root.option_add("*TCombobox*Listbox.selectBackground", self.color_acento)
+        self.root.option_add("*TCombobox*Listbox.selectForeground", "white")
+        self.root.option_add("*TCombobox*Listbox.font", ("Arial", 10))
+        self.root.option_add("*TCombobox*Listbox.borderwidth", 0)
+        self.root.option_add("*TCombobox*Listbox.highlightthickness", 0)
+
+        # Estilo para la Tabla (Treeview)
+        self.style.configure("Treeview", 
+                             background=self.color_panel, 
+                             foreground=self.color_texto, 
+                             fieldbackground=self.color_panel, 
+                             rowheight=35,
+                             borderwidth=0)
+        self.style.configure("Treeview.Heading", 
+                             background="#2d2d3d", 
+                             foreground=self.color_acento, 
+                             font=("Arial", 10, "bold"))
+        self.style.map("Treeview.Heading",
+                       background=[('active', '#2d2d3d'), ('pressed', '#2d2d3d')],
+                       foreground=[('active', self.color_acento), ('pressed', self.color_acento)])
+
+        self.style.map("Treeview", 
+                       background=[('selected', self.color_panel), ('active', self.color_panel)],
+                       foreground=[('selected', self.color_texto), ('active', self.color_texto)])
+
+        # --- DATOS DEL SISTEMA ---
+        self.turnos_disponibles = ['Mañana', 'Tarde', 'Noche']
+        self.dias_validos = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+        self.df_empleados = pd.DataFrame(columns=['ID', 'Nombre', 'Apellido'])
+        self.df_agenda = pd.DataFrame(columns=['Día', 'Turno', 'ID_Empleado', 'Nombre_Completo'])
+
+        # --- CONTENEDOR PRINCIPAL ---
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(expand=True, fill='both', padx=15, pady=15)
+
+        self.tab_registro = tk.Frame(self.notebook, bg=self.color_fondo)
+        self.tab_asignacion = tk.Frame(self.notebook, bg=self.color_fondo)
+        self.tab_agenda = tk.Frame(self.notebook, bg=self.color_fondo)
+
+        self.notebook.add(self.tab_registro, text=' 👤 REGISTRO ')
+        self.notebook.add(self.tab_asignacion, text=' 📅 ASIGNACIÓN ')
+        self.notebook.add(self.tab_agenda, text=' 📊 AGENDA ACTUAL ')
+
+        self.construir_tab_registro()
+        self.construir_tab_asignacion()
+        self.construir_tab_agenda()
+
+        self.notebook.bind("<<NotebookTabChanged>>", self.al_cambiar_pestana)
+
+    def crear_label_entry(self, parent, label_text, var_name, row_idx):
+        tk.Label(parent, text=label_text, fg=self.color_texto, bg=self.color_panel, font=("Arial", 10)).grid(row=row_idx, column=0, sticky="w", pady=10)
+        entry = tk.Entry(parent, bg="#2d2d3d", fg="white", insertbackground="white", 
+                         font=("Arial", 10), borderwidth=0, highlightthickness=1, highlightbackground="#3d3d4d")
+        entry.grid(row=row_idx, column=1, pady=10, padx=15, ipady=8, ipadx=5)
+        setattr(self, var_name, entry)
+
+    def construir_tab_registro(self):
+        frame = tk.Frame(self.tab_registro, bg=self.color_panel, padx=40, pady=40, highlightbackground=self.color_acento, highlightthickness=1)
+        frame.place(relx=0.5, rely=0.5, anchor="center")
+
+        tk.Label(frame, text="REGISTRO DE PERSONAL", fg=self.color_acento, bg=self.color_panel, font=("Arial", 16, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 25))
+
+        self.crear_label_entry(frame, "ID Numérico:", "entry_id_reg", 1)
+        self.crear_label_entry(frame, "Nombre:", "entry_nombre", 2)
+        self.crear_label_entry(frame, "Apellido:", "entry_apellido", 3)
+
+        btn = tk.Button(frame, text="GUARDAR EMPLEADO", command=self.registrar_empleado, 
+                        bg=self.color_acento, fg="white", font=("Arial", 11, "bold"), 
+                        activebackground="#a389ff", activeforeground="white",
+                        cursor="hand2", borderwidth=0, padx=25, pady=12)
+        btn.grid(row=4, column=0, columnspan=2, pady=(25, 0))
+
+    def construir_tab_asignacion(self):
+        frame = tk.Frame(self.tab_asignacion, bg=self.color_panel, padx=40, pady=40, highlightbackground=self.color_acento, highlightthickness=1)
+        frame.place(relx=0.5, rely=0.5, anchor="center")
+
+        tk.Label(frame, text="ASIGNACIÓN DE TURNOS", fg=self.color_acento, bg=self.color_panel, font=("Arial", 16, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 25))
+
+        tk.Label(frame, text="Día:", fg=self.color_texto, bg=self.color_panel, font=("Arial", 10)).grid(row=1, column=0, sticky="w", pady=10)
+        # Combobox para Día
+        self.combo_dia = ttk.Combobox(frame, values=self.dias_validos, state="readonly", width=25)
+        self.combo_dia.grid(row=1, column=1, pady=10, padx=15, ipady=5)
+        self.combo_dia.set(self.dias_validos[0])
+
+        tk.Label(frame, text="Turno:", fg=self.color_texto, bg=self.color_panel, font=("Arial", 10)).grid(row=2, column=0, sticky="w", pady=10)
+        # Combobox para Turno
+        self.combo_turno = ttk.Combobox(frame, values=self.turnos_disponibles, state="readonly", width=25)
+        self.combo_turno.grid(row=2, column=1, pady=10, padx=15, ipady=5)
+        self.combo_turno.set(self.turnos_disponibles[0])
+
+        self.crear_label_entry(frame, "ID Empleado:", "entry_id_asig", 3)
+
+        btn = tk.Button(frame, text="ASIGNAR TURNO", command=self.asignar_turno, 
+                        bg=self.color_acento, fg="white", font=("Arial", 11, "bold"), 
+                        activebackground="#a389ff", activeforeground="white",
+                        cursor="hand2", borderwidth=0, padx=25, pady=12)
+        btn.grid(row=4, column=0, columnspan=2, pady=(25, 0))
+
+    def construir_tab_agenda(self):
+        self.frame_tabla = tk.Frame(self.tab_agenda, bg=self.color_fondo, padx=30, pady=30)
+        self.frame_tabla.pack(expand=True, fill='both')
+
+        tk.Label(self.frame_tabla, text="AGENDA SEMANAL DE TRABAJO", fg=self.color_acento, bg=self.color_fondo, font=("Arial", 18, "bold")).pack(pady=(0, 20))
+
+        self.columnas_matriz = ['TURNO'] + self.dias_validos
+        self.tree_matriz = ttk.Treeview(self.frame_tabla, columns=self.columnas_matriz, show='headings', height=8)
+        
+        for col in self.columnas_matriz:
+            self.tree_matriz.heading(col, text=col)
+            self.tree_matriz.column(col, width=140, anchor='center')
+
+        self.tree_matriz.pack(expand=True, fill='both')
+
+    def registrar_empleado(self):
+        try:
+            id_val = self.entry_id_reg.get().strip()
+            if not id_val: return
+            id_emp = int(id_val)
+            nom = self.entry_nombre.get().strip()
+            ape = self.entry_apellido.get().strip()
+            if not nom or not ape:
+                messagebox.showwarning("Atención", "Completa todos los campos.")
+                return
+            if id_emp in self.df_empleados['ID'].values:
+                messagebox.showerror("Error", "Este ID ya existe.")
+                return
+            nuevo = pd.DataFrame([{'ID': id_emp, 'Nombre': nom, 'Apellido': ape}])
+            self.df_empleados = pd.concat([self.df_empleados, nuevo], ignore_index=True)
+            messagebox.showinfo("Éxito", f"Empleado {nom} guardado.")
+            self.entry_id_reg.delete(0, tk.END); self.entry_nombre.delete(0, tk.END); self.entry_apellido.delete(0, tk.END)
+        except ValueError:
+            messagebox.showerror("Error", "El ID debe ser numérico.")
+
+    def asignar_turno(self):
+        dia = self.combo_dia.get()
+        turno = self.combo_turno.get()
+        try:
+            id_val = self.entry_id_asig.get().strip()
+            if not id_val: return
+            id_emp = int(id_val)
+            emp = self.df_empleados[self.df_empleados['ID'] == id_emp]
+            if emp.empty:
+                messagebox.showerror("Error", "ID no encontrado.")
+                return
+            nombre_completo = f"{emp.iloc[0]['Nombre']} {emp.iloc[0]['Apellido']}"
+            colision = self.df_agenda[(self.df_agenda['Día'] == dia) & (self.df_agenda['Turno'] == turno)]
+            if not colision.empty:
+                messagebox.showwarning("Colisión", f"Ocupado por: {colision.iloc[0]['Nombre_Completo']}")
+            else:
+                nuevo = pd.DataFrame([{'Día': dia, 'Turno': turno, 'ID_Empleado': id_emp, 'Nombre_Completo': nombre_completo}])
+                self.df_agenda = pd.concat([self.df_agenda, nuevo], ignore_index=True)
+                messagebox.showinfo("Éxito", f"Turno asignado a {nombre_completo}")
+                self.entry_id_asig.delete(0, tk.END)
+        except ValueError:
+            messagebox.showerror("Error", "El ID debe ser numérico.")
+
+    def al_cambiar_pestana(self, event):
+        if self.notebook.index("current") == 2:
+            self.actualizar_vista_agenda()
+
+    def actualizar_vista_agenda(self):
+        for item in self.tree_matriz.get_children():
+            self.tree_matriz.delete(item)
+        matriz = pd.DataFrame(index=self.turnos_disponibles, columns=self.dias_validos).fillna("---")
+        for _, fila in self.df_agenda.iterrows():
+            matriz.at[fila['Turno'], fila['Día']] = fila['Nombre_Completo']
+        for turno_nombre in self.turnos_disponibles:
+            valores_fila = [turno_nombre.upper()] + list(matriz.loc[turno_nombre])
+            self.tree_matriz.insert('', 'end', values=valores_fila)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SistemaTurnosApp(root)
+    root.mainloop()
